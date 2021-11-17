@@ -1,0 +1,329 @@
+\documentclass{article}
+
+\usepackage[
+    pdftex,
+    colorlinks = true,
+    linkcolor = red,
+    citecolor = red,
+    filecolor = red,
+    urlcolor = blue,
+    ]{hyperref}
+\usepackage{geometry}
+\geometry{verbose, tmargin = 1.5cm, bmargin = 2cm, lmargin = 1cm, rmargin = 1cm}
+
+\begin{document}
+
+\begin{center}
+\textbf{\Large{
+As fast as it gets? Challenging R(cpp) with Julia}}
+\end{center}
+
+<<"set global chunk options", include=FALSE, cache=FALSE>>=
+knit_hooks$set(document = function(x) {sub('\\usepackage[]{color}', '\\usepackage{xcolor}', x, fixed = TRUE)})
+opts_knit$set(progress = FALSE, verbose = FALSE, eval.after = 'fig.cap')
+options(formatR.arrow = TRUE, width = 60)
+opts_chunk$set(
+  keep.source = TRUE,
+  dev = c('pdf'),
+  fig.width = 6,
+  fig.height = 5,
+  tinytex.verbose = TRUE,
+  fig.show = 'hold',
+  out.width = '.8\\linewidth',
+  echo = FALSE,
+  eval = TRUE,
+  tidy = TRUE,
+  external = TRUE,
+  fig.align = 'center',
+  size = 'small',
+  include = TRUE,
+  dev.args = list(pointsize=8)
+)
+@
+
+<<"Load libraries", include=FALSE>>=
+library(ggplot2)
+library(scales)
+library(forcats)
+library(ggtext)
+library(png)
+library(dplyr)
+library(ggrepel)
+@
+
+<<"Set plotting parameters">>=
+## Set_Custom_Theme
+theme_set(theme_bw() +
+            theme(
+              panel.grid.major=element_blank(),
+              panel.grid.minor=element_blank(),
+              plot.title=element_text(hjust=.5),
+              axis.text.y=element_markdown(color = "black", size = 11),
+              strip.background=element_rect(fill="white"),
+              # axis.title=element_text(size=16, face="bold"),
+              axis.text.x=element_text(size=14),
+              strip.text=element_text(size=12, face="bold")
+            )
+          )
+# Julia colours
+jblue   <- rgb(.251, .388, .847)
+jgreen  <- rgb(.22,  .596, .149)
+jpurple <- rgb(.584, .345, .698)
+jred    <- rgb(.796, .235, .2)
+
+# R colours
+rblue1  <- "#165CAA"
+rblue2  <- "#276DC2"
+rsilver <- "#BFC2C5"
+rgrey   <- "#919198"
+
+# Armadillo colours
+agreen1 <- "#12631A"
+agreen2 <- "#ADC949"
+
+# Rcpp colours
+rcpp1   <- "#CC2127"
+rcpp2   <- "#2866B0"
+
+# Matlab colour
+matlab1 <- "#871F0F"
+@
+
+\section{Benchmark results}
+
+<<"Results_figure_1", fig.width=9, fig.height=4.5>>=
+###############################################################################
+## benchmark round 1
+## single-core
+df1a <- data.frame(code=c("Jf1", "Jf2", "R", "Rcpp"),
+                 time=c(46.735, 38.807, 74.61, 20.856))
+## multi-core
+df1b <- data.frame(code=c("Jf1", "Jf2", "R", "Rcpp"),
+                 time=c(7.00, 6.012, 23.96, 2.634))
+
+cols1 <- c("Jf1"=jgreen,
+          "Jf2"=jgreen,
+          "Rcpp"=rcpp1,
+          "RcppArmadillo"=rcpp1,
+          "R"=rblue1)
+fnames <- as_labeller(c(`1`="Single-Core", `2`="Multi-Core (12)"))
+
+lab0 <- c(
+  Jf1 = "<img src='julia-logo-color.png' width='30' /><br>*f1*",
+  Jf2 = "<img src='julia-logo-color.png' width='30' /><br>*f2*",
+  Rcpp = "<img src='rcpp-logo-blue-dial.png' width='35' />",
+  R = "<img src='Rlogo.png' width='30' /><br>")
+
+bind_rows(df1a, df1b, .id="core") %>%
+  mutate(code = fct_reorder(code, time)) %>%
+   ggplot(aes(code, time, fill=code) ) +
+      geom_col(show.legend=FALSE) +
+      facet_wrap(~core, labeller=fnames) +
+      scale_colour_manual(values=cols1, aesthetics=c("fill")) +
+      coord_flip() +
+      scale_x_discrete(name="", labels=lab0) +
+      scale_y_continuous(name="time (sec)", breaks=seq(0,75,10)) +
+      theme(axis.title=element_text(size=18), axis.text.x=element_text(size=14)) +
+      geom_text_repel(
+        aes(label=format(round(time, 2), nsmall=2)),
+        colour=c(rep("black", 2), "white", rep("black", 3), "black", "black"),
+        position = position_nudge_repel(y=1),
+        size=4, segment.color = 'transparent')
+@
+
+<<"Results_figure_2">>=
+df2b <- data.frame(code=c("Jf3a", "Jf5a", "Rsc", "Rhv"),
+                   time=c(32.564, .736, 29.345, 74.61))
+
+cols2 <- c("Jf5a"=jgreen, "Jf3a"=jgreen, "Rsc"=rblue1, "Rhv"=rblue1)
+
+lab2 <- c(
+  Jf3a = "<img src='julia-logo-color.png' width='30' /><br>*sc*",
+  Jf5a = "<img src='julia-logo-color.png' width='30' /><br>*hv*",
+  Rsc = "<img src='Rlogo.png' width='30' /><br>*hv*",
+  Rhv = "<img src='Rlogo.png' width='30' /><br>*sc*")
+
+df2b %>%
+  mutate(code = fct_reorder(code, time)) %>%
+   ggplot(aes(code, time, fill=code) ) +
+      geom_col(show.legend=FALSE) +
+      scale_colour_manual(values=cols2, aesthetics=c("fill")) +
+      coord_flip() +
+      scale_x_discrete(name="", labels=lab2) +
+      scale_y_continuous(name="time (sec)", breaks=seq(0,75,10)) +
+      theme(axis.title=element_text(size=18), axis.text.x=element_text(size=14)) +
+      geom_text_repel(
+        aes(label=format(round(time, 2), nsmall=2)),
+        position=position_nudge_repel(y=1),
+        colour=c(rep("black", 3), "white"),
+        size=5, segment.color='transparent')
+@
+
+<<"Results_figure_3">>=
+## benchmark round 3.1
+## CP CI- vectorized
+df3a <- data.frame(code=c("Jf5", "Rcppv1", "Rhv"),
+                   time=c(0.736, 0.626, 29.345))
+## ALL CI- vectorized
+df3b <- data.frame(code=c("Jf6", "Rcppv2", "Rfv"),
+                   time=c(0.679, 0.450, 0.971))
+
+cols3 <- c("Jf5"=jgreen,
+          "Jf6"=jgreen,
+          "Rhv"=rblue1,
+          "Rfv"=rblue1,
+          "Rcppv1"=rcpp1,
+          "Rcppv2"=rcpp1)
+
+lab3 <- c(
+  Jf5 = "<img src='julia-logo-color.png' width='30' /><br>*hv*",
+  Jf6 = "<img src='julia-logo-color.png' width='30' /><br>*fv*",
+  Rhv = "<img src='Rlogo.png' width='30' /><br>*hv*",
+  Rfv = "<img src='Rlogo.png' width='30' /><br>*fv*",
+  Rcppv1 = "<img src='rcpp-logo-blue-dial.png' width='30' /><br>*hv*",
+  Rcppv2 = "<img src='rcpp-logo-blue-dial.png' width='30' /><br>*fv*")
+
+bind_rows(df3a, df3b, .id="vec") %>%
+  mutate(code = fct_reorder(code, time)) %>%
+   ggplot(aes(code, time, fill=code) ) +
+      geom_col(show.legend=FALSE) +
+      scale_colour_manual(values=cols3, aesthetics="fill") +
+      coord_flip() +
+      scale_x_discrete(name="", labels=lab3) +
+      scale_y_continuous(name="time (sec)", breaks=c(0,10,20,30)) +
+      theme(axis.title=element_text(size=18),
+            axis.text.x=element_text(size=14)) +
+        geom_text_repel(
+        aes(label=format(round(time, 2), nsmall=2)),
+        colour=c(rep("black", 2), "white", rep("black", 3)),
+        position = position_nudge_repel(y=1),
+        size=5, segment.color='transparent')
+@
+
+<<"Results_figure_4">>=
+## benchmark round 3
+## CP CI- vectorized
+df3a <- data.frame(code=c("Jf5", "Rcppv1", "Rhv"),
+                   time=c(1.266, 0.626, 29.345))
+## ALL CI- vectorized
+df3b <- data.frame(code=c("Jf6", "Rcppv2", "Rfv"),
+                   time=c(1.194, 0.450, 0.971))
+
+cols3 <- c("Jf5"=jgreen,
+          "Jf6"=jgreen,
+          "Rhv"=rblue1,
+          "Rfv"=rblue1,
+          "Rcppv1"=rcpp1,
+          "Rcppv2"=rcpp1)
+
+lab3 <- c(
+  Jf5 = "<img src='julia-logo-color.png' width='30' /><br>*hv*",
+  Jf6 = "<img src='julia-logo-color.png' width='30' /><br>*fv*",
+  Rhv = "<img src='Rlogo.png' width='30' /><br>*hv*",
+  Rfv = "<img src='Rlogo.png' width='30' /><br>*fv*",
+  Rcppv1 = "<img src='rcpp-logo-blue-dial.png' width='30' /><br>*hv*",
+  Rcppv2 = "<img src='rcpp-logo-blue-dial.png' width='30' /><br>*fv*")
+
+bind_rows(df3a, df3b, .id="vec") %>%
+  mutate(code = fct_reorder(code, time)) %>%
+   ggplot(aes(code, time, fill=code) ) +
+      geom_col(show.legend=FALSE) +
+      scale_colour_manual(values=cols3, aesthetics="fill") +
+      coord_flip() +
+      scale_x_discrete(name="", labels=lab3) +
+      scale_y_continuous(name="time (sec)", breaks=c(0,10,20,30)) +
+      theme(axis.title=element_text(size=18),
+            axis.text.x=element_text(size=14)) +
+        geom_text_repel(
+        aes(label=format(round(time, 2), nsmall=2)),
+        colour=c(rep("black", 2), "white", rep("black", 3)),
+        position = position_nudge_repel(y=1),
+        size=5, segment.color='transparent')
+@
+
+<<"Results_figure_5">>=
+## CP CI- vectorized
+df4a <- data.frame(code=c("Rhv", "JCallhv", "Matlabhv", "Rcppv1"),
+                   time=c(29.345, 1.337, 7.1, .626))
+
+## ALL CI- vectorized
+df4b <- data.frame(code=c("Rfv", "JCallfv", "Matlabfv", "Rcppv2"),
+                   time=c(0.971, 1.331, 7.02, .450))
+
+cols4 <- c("Rhv"=rblue1,
+          "Rfv"=rblue1,
+          "Matlabhv"=matlab1,
+          "Matlabfv"=matlab1,
+          "JCallhv"=jpurple,
+          "JCallfv"=jpurple,
+          "Rcppv1"=rcpp1,
+          "Rcppv2"=rcpp1)
+
+lab4 <- c(
+  JCallhv = "<img src='julia-logo-color.png' width='30' /><br>CALL *hv*",
+  JCallfv = "<img src='julia-logo-color.png' width='30' /><br>CALL *fv*",
+  Matlabhv = "<img src='Matlab_Logo.png' width='25' /><br>*hv*",
+  Matlabfv = "<img src='Matlab_Logo.png' width='25' /><br>*fv*",
+  Rhv = "<img src='Rlogo.png' width='30' /><br>*hv*",
+  Rfv = "<img src='Rlogo.png' width='30' /><br>*fv*",
+  Rcppv1 = "<img src='rcpp-logo-blue-dial.png' width='30' /><br>*hv*",
+  Rcppv2 = "<img src='rcpp-logo-blue-dial.png' width='30' /><br>*fv*")
+
+bind_rows(df4a, df4b, .id="vec") %>%
+  mutate(code = fct_reorder(code, time)) %>%
+   ggplot(aes(code, time, fill=code) ) +
+    geom_col(show.legend=FALSE) +
+    scale_colour_manual(values=cols4, aesthetics="fill") +
+    coord_flip() +
+    scale_x_discrete(name="", labels=lab4) +
+    scale_y_continuous(name="time (sec)", breaks=c(0,10,20,30)) +
+    theme(axis.title=element_text(size=18), axis.text.x=element_text(size=14)) +
+    geom_text_repel(aes(label=format(round(time, 2), nsmall=2)),
+                    position=position_nudge_repel(y=1),
+                    colour=c("white", rep("black", 4), rep("black", 3)),
+                    size=5, segment.color='transparent')
+@
+
+<<"Results_figure_6">>=
+## benchmark round 5 (all using stats::rbinom)
+df5a <- data.frame(code=c("Rhv", "JCallhv", "Matlabhv", "Rcppv1"),
+                   time=c(29.345, 1.235, 3.74, .626))
+## ALL CI- vectorized
+df5b <- data.frame(code=c("Rfv", "JCallfv", "Matlabfv", "Rcppv2"),
+                   time=c(0.971, 1.077, 3.76, .450))
+
+cols4 <- c("Rhv"=rblue1,
+          "Rfv"=rblue1,
+          "Matlabhv"=matlab1,
+          "Matlabfv"=matlab1,
+          "JCallhv"=jpurple,
+          "JCallfv"=jpurple,
+          "Rcppv1"=rcpp1,
+          "Rcppv2"=rcpp1)
+
+lab4 <- c(
+  JCallhv = "<img src='julia-logo-color.png' width='30' /><br>CALL *hv*",
+  JCallfv = "<img src='julia-logo-color.png' width='30' /><br>CALL *fv*",
+  Matlabhv = "<img src='Matlab_Logo.png' width='25' /><br>*hv*",
+  Matlabfv = "<img src='Matlab_Logo.png' width='25' /><br>*fv*",
+  Rhv = "<img src='Rlogo.png' width='30' /><br>*hv*",
+  Rfv = "<img src='Rlogo.png' width='30' /><br>*fv*",
+  Rcppv1 = "<img src='rcpp-logo-blue-dial.png' width='30' /><br>*hv*",
+  Rcppv2 = "<img src='rcpp-logo-blue-dial.png' width='30' /><br>*fv*")
+
+bind_rows(df5a, df5b, .id="vec") %>%
+  mutate(code = fct_reorder(code, time)) %>%
+   ggplot(aes(code, time, fill=code) ) +
+    geom_col(show.legend=FALSE) +
+    scale_colour_manual(values=cols4, aesthetics="fill") +
+    coord_flip() +
+    scale_x_discrete(name="", labels=lab4) +
+    scale_y_continuous(name="time (sec)", breaks=c(0,10,20,30)) +
+    theme(axis.title=element_text(size=18), axis.text.x=element_text(size=14)) +
+    geom_text_repel(aes(label=format(round(time, 2), nsmall=2)),
+                    position=position_nudge_repel(y=1),
+                    colour=c("white", rep("black", 4), rep("black", 3)),
+                    size=5, segment.color='transparent')
+@
+
+\end{document}
